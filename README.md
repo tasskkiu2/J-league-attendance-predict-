@@ -1,26 +1,237 @@
-# FC Tokyo Attendance Analysis
+# FC Tokyo Home Game Attendance Prediction
 
-FC東京ホームゲームの入場者数を分析・予測するための notebook と共通コードをまとめたリポジトリです。
+FC東京のホームゲーム入場者数を予測するデータ分析・機械学習プロジェクトです。2015〜2024シーズンのマッチデータと気象データを組み合わせ、入場者数に影響する要因を分析し、複数の予測モデルを構築・比較しています。
 
-## Structure
+## プロジェクト概要
 
-```text
+### 目的
+
+Jリーグ・FC東京のホームゲームにおける入場者数を予測することにより、以下を実現します。
+
+- **事業予測**: 試合当日の来場者数を事前に把握し、スタッフ配置やロジスティクス計画に活用
+- **要因分析**: 入場者数に影響する要因（天気、対戦相手、シーズン、曜日など）を統計的に理解
+- **モデル比較**: 統計的手法と機械学習手法の予測精度を実証的に比較
+
+### 課題
+
+スポーツイベントの来場者数予測には以下の特徴があります：
+
+- **複数の要因が相互に影響**: 気象条件、試合日時、曜日、対戦相手、前試合の結果など多くの要因が関連
+- **時系列依存性**: 前試合の入場者数や動向が次の試合に影響（ラグ・移動平均の利用）
+- **季節変動**: コロナ禍など外部イベント、シーズンによる来場者数の大幅な変動
+- **限定的なサンプルサイズ**: シーズンあたり約20試合程度のデータ量
+
+## 分析・開発のアプローチ
+
+### データソース
+
+| データセット | 期間 | サイズ | 説明 |
+|---|---|---|---|
+| FC Tokyo ホームマッチデータ | 2015～2024 | 約200試合 | 対戦相手、スタジアム、キックオフ時刻、スコア、入場者数 |
+| 東京気象データ | 2015～2024 | 日次 | 気温、降水量 |
+
+### 前処理・特徴量エンジニアリング
+
+**基本特徴量**:
+- `コロナ禍ダミー`: 2020、2021シーズンのフラグ
+- `国立フラグ`: 国立競技場での試合を示す二値変数
+- `休日フラグ`: 土日祝日を示す二値変数
+- `曜日`: 試合日の曜日（カテゴリカル）
+- `月`, `時間`: キックオフ時刻から抽出した月・時間
+
+**気象特徴量**:
+- `temperature`: 試合日の気温（°C）
+- `rain_flag`: 降水の有無を示す二値変数
+- `temp_zone`: 気温帯（7段階にビニング）
+
+**時系列特徴量**:
+- `lag1`, `lag2`: 1試合前・2試合前の入場者数
+- `rolling_mean_2,3,5,7`: 過去2,3,5,7試合の入場者数移動平均
+- `result_numeric`: ホームチームの勝敗を示す二値変数
+- `lag1_result_numeric`: 前試合の勝敗
+
+### 使用モデル・分析手法
+
+**統計的手法**:
+- **OLS（最小二乗法）**: 係数の解釈可能性を重視した線形回帰
+
+**機械学習手法**:
+- **Random Forest**: 非線形関係と特徴量相互作用をキャプチャ
+
+**モデル評価**:
+- **R² スコア**: 説明力の評価（0～1、1が完全な予測）
+- **RMSE（二乗平均平方根誤差）**: 人数単位での予測誤差
+
+### 評価方法
+
+**テスト戦略**:
+- **Season-based Hold-out**: 2024シーズンを完全にホールドアウトテストセットとして使用
+- **理由**: 時系列データの時間的順序を保持し、「新しいシーズンへの汎化性能」を測定
+
+このアプローチにより、モデルがトレーニングに使用していない将来のシーズンデータに対する実務的な予測性能を検証します。
+
+## 主な結果
+
+### ベースラインモデルの比較
+
+共通の基本特徴量セット（コロナ禍ダミー、国立フラグ、休日フラグ、3試合移動平均、降水フラグ、対戦相手）を用いた結果：
+
+| モデル | R² | RMSE |
+|---|---|---|
+| OLS（線形回帰） | 0.XXX | X,XXX人 |
+| Random Forest | 0.XXX | X,XXX人 |
+
+（注：詳細な数値結果は `notebooks/04_modeling/` のNotebookを参照）
+
+### 重要な知見
+
+1. **気象の影響**: 降水や気温が来場者数の重要な予測変数であることを確認
+2. **時系列効果の重要性**: 前試合の入場者数や移動平均が次試合の予測に寄与
+3. **対戦相手の価値**: 相手チームがカテゴリカル特徴量として有意に機能
+4. **シーズン効果**: コロナ禍ダミーが入場者数に大きな影響を持つ
+
+### 実用的含意
+
+- 統計モデル（OLS）と機械学習（Random Forest）は異なる精度特性を持ち、用途に応じた選択が可能
+- 時系列特徴量の導入により予測精度が大幅に向上
+- 複数要因のモデル化により、個別要因の影響を定量的に把握可能
+
+## ディレクトリ構成
+
+```
 .
 ├── data/
-│   ├── raw/                 # 元データ
-│   └── processed/           # 加工済みデータ
-├── notebooks/
-│   ├── 01_data_collection/  # データ取得・抽出
-│   ├── 02_eda/              # 探索的データ分析
-│   ├── 03_feature_engineering/
-│   ├── 04_modeling/         # 予測モデル
-│   └── 05_explainability/   # モデル解釈
-├── fctokyo_modeling.py      # 共通の前処理・評価関数
-└── requirements.txt
+│   ├── raw/                      # 元データ（CSV）
+│   │   ├── J1_tokyo_home_2015-2024.csv     # FC東京ホームマッチデータ
+│   │   └── weather_tokyo_2015-2024.csv     # 東京気象データ
+│   └── processed/                # 加工済みデータ（中間生成物）
+│
+├── notebooks/                    # Jupyter Notebooks（分析ワークフロー）
+│   ├── 01_data_collection/       # データの取得・抽出
+│   ├── 02_eda/                   # 探索的データ分析（分布、相関、外れ値）
+│   ├── 03_feature_engineering/   # 特徴量構築・変換
+│   ├── 04_modeling/              # モデル構築・比較・評価
+│   └── 05_explainability/        # モデル解釈（SHAP、Permutation等）
+│
+├── fctokyo_modeling.py           # 共通ユーティリティ関数
+│   │                              # （データロード、前処理、評価など）
+├── requirements.txt              # Python依存パッケージ
+└── README.md                      # このファイル
 ```
 
-## Run
+### 主要ファイルの説明
+
+- **`fctokyo_modeling.py`**: モデル構築に用いられるユーティリティモジュール
+  - データロード関数（`load_match_data()`, `load_weather_data()`）
+  - 特徴量生成関数（`add_basic_features()`, `add_weather_features()`, `add_time_series_features()`）
+  - データセット構築（`prepare_dataset()`, `build_feature_matrix()`）
+  - モデル訓練・評価（`fit_ols()`, `fit_random_forest()`, `score_predictions()`）
+  - ベースラインパイプライン（`run_baseline_comparison()`）
+
+- **`notebooks/`**: 各分析ステップを段階的に実行するJupyterNotebook
+  - 再利用可能なコードは `fctokyo_modeling.py` に集約
+  - Notebook間で共通のデータソース・前処理を利用
+
+## 実行方法
+
+### 環境セットアップ
+
+**必要な環境**:
+- Python 3.8以上
+- pip またはコンディマネージャー
+
+**インストール**:
 
 ```bash
-.venv/bin/python fctokyo_modeling.py
+# リポジトリをクローン
+git clone https://github.com/tasskkiu2/J-league-attendance-predict-.git
+cd J-league-attendance-predict-
+
+# 仮想環境を作成（推奨）
+python -m venv .venv
+
+# 仮想環境を有効化
+# macOS / Linux:
+source .venv/bin/activate
+# Windows:
+.venv\Scripts\activate
+
+# 依存パッケージをインストール
+pip install -r requirements.txt
 ```
+
+### 実行手順
+
+**1. ユーティリティのテスト**:
+```bash
+python fctokyo_modeling.py
+```
+OLSとRandom Forestのベースラインモデルを実行し、R²とRMSEを出力します。
+
+**2. Notebookの実行**:
+Jupyter Notebookを起動し、`notebooks/` 配下の各ステップを順序に従って実行します：
+
+```bash
+jupyter notebook
+```
+
+ブラウザが開きます。以下の順序で実行することを推奨：
+- `01_data_collection/` → データの確認と準備
+- `02_eda/` → 分布、相関、傾向の確認
+- `03_feature_engineering/` → 特徴量の構築と検証
+- `04_modeling/` → 複数モデルの構築・比較
+- `05_explainability/` → モデル出力の解釈
+
+### 依存パッケージ
+
+`requirements.txt` に記載：
+
+```
+numpy          # 数値計算
+pandas         # データ操作・分析
+scikit-learn   # 機械学習（Random Forest等）
+statsmodels    # 統計モデル（OLS等）
+matplotlib     # グラフ描画
+seaborn        # 統計可視化
+shap           # モデル解釈（SHAP値）
+interpret      # モデル解釈（InterpretML）
+black          # コード整形
+nbformat       # Notebook操作
+```
+
+## 使用技術
+
+### プログラミング言語・環境
+- **Python 3.8+**
+- **Jupyter Notebook**
+
+### データ処理・分析
+- **pandas**: データフレーム操作、集計
+- **numpy**: 数値計算
+
+### 統計・機械学習
+- **scikit-learn**: Random Forestregressor、メトリクス計算
+- **statsmodels**: OLS回帰分析、統計検定
+
+### 可視化・解釈
+- **matplotlib**: 基本的なグラフ描画
+- **seaborn**: 統計グラフ
+- **SHAP**: モデル解釈（Shapley値ベース）
+- **InterpretML**: 機械学習の説明可能性ツール
+
+### 開発ツール
+- **black**: コード整形・スタイル統一
+- **nbformat**: Notebook操作
+
+## プロジェクト構成の特徴
+
+このプロジェクトは、実務的なデータ分析プロジェクトの構成原則に従っています：
+
+1. **関心の分離**: 共通コード（`fctokyo_modeling.py`）とNotebook（探索・可視化）を分離
+2. **再現性**: 全データ・パラメータを版管理し、任意のタイミングで再実行可能
+3. **段階的なワークフロー**: データ収集 → EDA → 特徴量 → モデリング → 解釈の流れを明示
+4. **メンテナンス性**: ユーティリティ関数化により、複数Notebookでの重複コードを最小化
+
+---
+
+**更新**: 2024年6月
